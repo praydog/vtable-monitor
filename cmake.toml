@@ -1,0 +1,89 @@
+[project]
+name = "template-project"
+cmake-before="""
+add_compile_options($<$<CXX_COMPILER_ID:MSVC>:/MP>)
+set(VCPKG_TARGET_TRIPLET x64-windows-static)
+"""
+
+cmake-after = """
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
+set(ASMJIT_STATIC ON CACHE BOOL "" FORCE)
+if ("${CMAKE_BUILD_TYPE}" MATCHES "Release")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MT")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MT")
+
+    # Statically compile runtime
+    string(REGEX REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    string(REGEX REPLACE "/MD" "/MT" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
+    string(REGEX REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
+    string(REGEX REPLACE "/MD" "/MT" CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
+    message(NOTICE "Building in Release mode")
+endif()
+"""
+
+[vcpkg]
+version = "2023.12.12"
+packages = [
+    "imgui[docking-experimental,freetype,glfw-binding,opengl3-binding]",
+    "glad[gl-api-30]",
+    "glfw3"
+]
+
+[find-package]
+imgui = {}
+glad = {}
+glfw3 = {}
+
+[fetch-content]
+spdlog = { git = "https://github.com/gabime/spdlog", tag = "ad0e89cbfb4d0c1ce4d097e134eb7be67baebb36" }
+bddisasm = { git = "https://github.com/bitdefender/bddisasm", tag = "v1.34.10" }
+kananlib = { git = "https://github.com/cursey/kananlib.git", tag = "main" }
+
+[fetch-content.safetyhook]
+git = "https://github.com/cursey/safetyhook"
+tag = "main"
+cmake-before="""
+set(SAFETYHOOK_FETCH_ZYDIS ON)
+"""
+
+[fetch-content.json]
+git = "https://github.com/nlohmann/json"
+tag = "bc889afb4c5bf1c0d8ee29ef35eaaf4c8bef8a5d"
+
+[fetch-content.tracy]
+git = "https://github.com/wolfpld/tracy"
+tag = "897aec5b062664d2485f4f9a213715d2e527e0ca"
+cmake-before="""
+set(TRACY_STATIC ON CACHE BOOL "" FORCE)
+set(TRACY_ENABLE OFF CACHE BOOL "" FORCE)
+"""
+
+[target.vtablemonitor]
+type = "shared"
+sources = ["src/**.cpp", "src/**.c"]
+headers = ["src/**.hpp", "src/**.h"]
+include-directories = [
+    "src/", 
+    "include/", 
+]
+compile-options = ["/GS-", "/bigobj", "/EHa", "/MP"]
+compile-features = ["cxx_std_23"]
+compile-definitions = []
+link-libraries = [
+    "kananlib",
+    "safetyhook",
+    "spdlog",
+    "imgui::imgui",
+    "glad::glad",
+    "glfw",
+]
+[target.vtablemonitor.properties]
+OUTPUT_NAME = "vtable-monitor"
+RUNTIME_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
+RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
+LIBRARY_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+ARCHIVE_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"

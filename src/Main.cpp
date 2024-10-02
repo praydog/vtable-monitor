@@ -86,6 +86,19 @@ private:
 std::string selected_module_name{};
 HMODULE selected_module{}; // The selected module
 
+void copy_to_clipboard(std::string_view text) {
+    if (OpenClipboard(nullptr)) {
+        EmptyClipboard();
+        HGLOBAL hg = GlobalAlloc(GMEM_MOVEABLE, text.size() + 1);
+        if (hg) {
+            memcpy(GlobalLock(hg), text.data(), text.size() + 1);
+            GlobalUnlock(hg);
+            SetClipboardData(CF_TEXT, hg);
+        }
+        CloseClipboard();
+    }
+}
+
 void render_module_vtables() {
     auto all_vtables = utility::rtti::find_all_vtables(selected_module);
 
@@ -124,10 +137,39 @@ void render_module_vtables() {
     ImGui::Separator();
 
     static std::unordered_map<uintptr_t, size_t> vtable_counts{};
+    static std::unordered_map<uintptr_t, std::vector<uintptr_t>> vtable_references{};
 
     for (const auto vtable : all_vtables) {
+        ImGui::PushID((void*)vtable);
+
+        utility::ScopeGuard guard { []() {
+            ImGui::PopID();
+        }};
+
         const auto ti = utility::rtti::get_type_info(&vtable);
-        ImGui::Text("%s", (ti != nullptr && ti->name() != nullptr) ? ti->name() : "Unknown");
+        //ImGui::Text("%s", (ti != nullptr && ti->name() != nullptr) ? ti->name() : "Unknown");
+        if (ImGui::TreeNode((ti != nullptr && ti->name() != nullptr) ? ti->name() : "Unknown")) {
+            auto it = vtable_references.find(vtable);
+
+            if (it == vtable_references.end()) {
+                vtable_references[vtable] = utility::scan_displacement_references(selected_module, vtable);
+                it = vtable_references.find(vtable);
+            }
+
+            for (const auto ref : it->second) {
+                ImGui::Text("0x%llx", ref);
+
+                if (ImGui::BeginPopupContextItem()) {
+                    if (ImGui::MenuItem("Copy to clipboard")) {
+                        copy_to_clipboard(std::format("0x{:x}", ref));
+                    }
+
+                    ImGui::EndPopup();
+                }
+            }
+
+            ImGui::TreePop();
+        }
         ImGui::NextColumn();
         size_t count = 0;
         if (vtable_counts.contains(vtable)) {

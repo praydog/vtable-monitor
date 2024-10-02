@@ -21,6 +21,7 @@ public:
     static void generic_hook(safetyhook::Context& ctx, Hook* hook);
 
     struct Hook {
+        Hooker* parent{};
         uintptr_t target{};
         safetyhook::MidHook impl{};
         std::unique_ptr<uint8_t[]> stub_code{};

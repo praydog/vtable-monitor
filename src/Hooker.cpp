@@ -39,6 +39,7 @@ Hooker::Hooker(uintptr_t* vtable)
         auto& hook = m_hooks.emplace_back(std::make_shared<Hook>());
         m_hook_map[i] = hook;
 
+        hook->parent = this;
         hook->target = entry;
         hook->stub_code = create_stub(i, hook.get());
         hook->index = i;
@@ -56,8 +57,9 @@ Hooker::Hooker(uintptr_t* vtable)
 }
 
 void Hooker::generic_hook(safetyhook::Context& ctx, Hook* hook) {
+    auto hooker = hook->parent;
     // This is a function belonging to another vtable, ignore it.
-    if (!s_ignore_vtable_mismatch && *(uintptr_t*)ctx.rcx != g_hooker->get_target()) {
+    if (!s_ignore_vtable_mismatch && *(uintptr_t*)ctx.rcx != hooker->get_target()) {
         return;
     }
 

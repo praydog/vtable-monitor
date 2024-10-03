@@ -32,7 +32,8 @@ public:
         std::atomic<std::chrono::nanoseconds> delta{};
         struct SensitiveData {
             std::shared_mutex mutex{};
-            std::vector<uintptr_t> callstack{};  
+            std::vector<uintptr_t> callstack{};
+            safetyhook::Context last_context{};
         } sensitive_data{};
         std::optional<uint8_t> original_byte{};
 
@@ -40,6 +41,12 @@ public:
         std::vector<uintptr_t> get_callstack() {
             std::shared_lock _{sensitive_data.mutex};
             return sensitive_data.callstack;
+        }
+
+        // Returns a copy of the last context.
+        safetyhook::Context get_last_context() {
+            std::shared_lock _{sensitive_data.mutex};
+            return sensitive_data.last_context;
         }
 
         void insert_ret() {

@@ -104,7 +104,7 @@ void Hooker::generic_hook(safetyhook::Context& ctx, Hook* hook) {
         }
     }
 
-    // Store the callstack
+    // Store the callstack and other sensitive data
     {
         std::unique_lock _{hook->sensitive_data.mutex};
         hook->sensitive_data.callstack.clear();
@@ -112,6 +112,8 @@ void Hooker::generic_hook(safetyhook::Context& ctx, Hook* hook) {
         for (size_t i = 0; i < count; ++i) {
             hook->sensitive_data.callstack.push_back(reinterpret_cast<uintptr_t>(callstack[i]));
         }
+
+        hook->sensitive_data.last_context = ctx;
     }
 }
 

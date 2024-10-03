@@ -227,13 +227,45 @@ bool render_gui() {
             ImGui::Separator();
 
             for (const auto& hook : hooks) {
-                ImGui::Text("%zu", hook->index);
+                //ImGui::Text("%zu", hook->index);
+                if (ImGui::TreeNode(std::format("{}", hook->index).c_str())) {
+                    const auto last_context = hook->get_last_context();
+
+                    #define PRINT_REG(reg) ImGui::Text(#reg ": 0x%llx", last_context.reg); \
+                        if (ImGui::BeginPopupContextItem()) { \
+                            if (ImGui::MenuItem("Copy to clipboard")) { \
+                                copy_to_clipboard(std::format("0x{:x}", last_context.reg)); \
+                            } \
+                            ImGui::EndPopup(); \
+                        }
+
+                    PRINT_REG(rcx);
+                    PRINT_REG(rdx);
+                    PRINT_REG(r8);
+                    PRINT_REG(r9);
+                    PRINT_REG(r10);
+                    PRINT_REG(r11);
+                    PRINT_REG(r12);
+                    PRINT_REG(r13);
+                    PRINT_REG(r14);
+                    PRINT_REG(r15);
+                    PRINT_REG(rax);
+                    PRINT_REG(rbx);
+                    PRINT_REG(rbp);
+                    PRINT_REG(rdi);
+                    PRINT_REG(rsi);
+                    PRINT_REG(rsp);
+                    PRINT_REG(rip);
+                    PRINT_REG(rflags);
+
+                    ImGui::TreePop();
+                }
                 ImGui::NextColumn();
                 ImGui::Text("%zu", hook->calls.load());
                 ImGui::NextColumn();
                 //ImGui::Text("0x%llx", hook->last_return_address.load());
                 if (ImGui::TreeNode(std::format("0x{:x}", hook->last_return_address.load()).c_str())) {
-                     const auto callstack = hook->get_callstack();
+                    const auto callstack = hook->get_callstack();
 
                     for (const auto addr : callstack) {
                         const auto module_within = utility::get_module_within(addr);

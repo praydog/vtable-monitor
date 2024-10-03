@@ -157,7 +157,7 @@ void render_module_vtables() {
             }
 
             for (const auto ref : it->second) {
-                ImGui::Text("0x%llx", ref);
+                ImGui::Selectable(std::format("0x{:x}", ref).c_str());
 
                 if (ImGui::BeginPopupContextItem()) {
                     if (ImGui::MenuItem("Copy to clipboard")) {
@@ -231,13 +231,16 @@ bool render_gui() {
                 if (ImGui::TreeNode(std::format("{}", hook->index).c_str())) {
                     const auto last_context = hook->get_last_context();
 
-                    #define PRINT_REG(reg) ImGui::Text(#reg ": 0x%llx", last_context.reg); \
+                    #define PRINT_REG(reg) \
+                        ImGui::PushID(#reg); \
+                        ImGui::Selectable(std::format(#reg ": 0x{:x}", last_context.reg).c_str()); \
                         if (ImGui::BeginPopupContextItem()) { \
                             if (ImGui::MenuItem("Copy to clipboard")) { \
                                 copy_to_clipboard(std::format("0x{:x}", last_context.reg)); \
                             } \
                             ImGui::EndPopup(); \
-                        }
+                        }\
+                        ImGui::PopID();
 
                     PRINT_REG(rcx);
                     PRINT_REG(rdx);

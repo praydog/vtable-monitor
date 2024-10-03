@@ -94,6 +94,8 @@ public:
     }
 
 public:
+    using ForEachFn = std::function<void(uintptr_t fn, size_t index)>;
+    static void for_each(uintptr_t* vtable, ForEachFn fn);
     static size_t count(uintptr_t* vtable);
 
     Hooker(uintptr_t* vtable);

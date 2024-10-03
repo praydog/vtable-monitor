@@ -10,30 +10,7 @@ Hooker::Hooker(uintptr_t* vtable)
 {
     spdlog::info("Hooking vtable at 0x{:x}", (uintptr_t)vtable);
 
-    for (size_t i = 0; ; ++i) {
-        uintptr_t& entry = vtable[i];
-
-        if (entry == 0 || IsBadReadPtr((void*)entry, sizeof(uintptr_t))) {
-            break;
-        }
-
-        // If the code is not even executable, we've hit the end of the vtable.
-        if (!utility::isGoodCodePtr(entry, sizeof(void*))) {
-            break;
-        }
-
-        // If the next pointer is a vtable, we've hit the end of the vtable.
-        if (utility::rtti::is_vtable((const void*)&vtable[i+1])) {
-            break;
-        }
-
-        uint8_t* instructions = (uint8_t*)entry;
-
-        // Ignore ret instructions
-        if (utility::is_stub_code(instructions)) {
-            continue;
-        }
-
+    for_each(vtable, [this](uintptr_t entry, size_t i) {
         spdlog::info("Hooking {} at 0x{:x}", i, entry);
 
         auto& hook = m_hooks.emplace_back(std::make_shared<Hook>());
@@ -44,7 +21,7 @@ Hooker::Hooker(uintptr_t* vtable)
         hook->stub_code = create_stub(i, hook.get());
         hook->index = i;
         hook->impl = safetyhook::create_mid(entry, (safetyhook::MidHookFn)hook->stub_code.get(), safetyhook::MidHook::Flags::StartDisabled);
-    }
+    });
 
     // Enable all the hooks now, is more thread safe.
     for (auto& hook : m_hooks) {
@@ -138,9 +115,9 @@ void Hooker::generic_hook(safetyhook::Context& ctx, Hook* hook) {
     }
 }
 
-size_t Hooker::count(uintptr_t* vtable) {
+void Hooker::for_each(uintptr_t* vtable, ForEachFn fn) {
     if (vtable == nullptr) {
-        return 0;
+        return;
     }
 
     size_t result = 0;
@@ -149,17 +126,17 @@ size_t Hooker::count(uintptr_t* vtable) {
         uintptr_t& entry = vtable[i];
 
         if (entry == 0 || IsBadReadPtr((void*)entry, sizeof(uintptr_t))) {
-            return result;
+            break;
         }
 
         // If the code is not even executable, we've hit the end of the vtable.
         if (!utility::isGoodCodePtr(entry, sizeof(void*))) {
-            return result;
+            break;
         }
 
         // If the next pointer is a vtable, we've hit the end of the vtable.
         if (utility::rtti::is_vtable((const void*)&vtable[i+1])) {
-            return result;
+            break;
         }
 
         uint8_t* instructions = (uint8_t*)entry;
@@ -169,10 +146,28 @@ size_t Hooker::count(uintptr_t* vtable) {
             continue;
         }
 
-        ++result;
+        // If we can't successfully disassemble the first instruction, we've hit the end of the vtable.
+        // Likely hit a string or some other form of data.
+        if (!utility::decode_one(instructions, 1000).has_value()) {
+            break;
+        }
+
+        fn(entry, i);
+    }
+}
+
+size_t Hooker::count(uintptr_t* vtable) {
+    if (vtable == nullptr) {
+        return 0;
     }
 
-    return result;
+    size_t highest_i = 0;
+
+    for_each(vtable, [&highest_i](uintptr_t fn, size_t index) {
+        highest_i = index;
+    });
+
+    return highest_i + 1;
 }
 
 std::unique_ptr<uint8_t[]> Hooker::create_stub(uint32_t vtable_index, void* hook_data) {

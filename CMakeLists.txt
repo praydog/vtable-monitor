@@ -136,7 +136,13 @@ set(vtablemonitor_SOURCES
 	cmake.toml
 	"src/Hooker.cpp"
 	"src/Hooker.hpp"
+	"src/Inspector.cpp"
+	"src/Inspector.hpp"
 	"src/Main.cpp"
+	"src/StringReferences.cpp"
+	"src/StringReferences.hpp"
+	"src/VtableManager.cpp"
+	"src/VtableManager.hpp"
 )
 
 add_library(vtablemonitor SHARED)

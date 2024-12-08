@@ -23,6 +23,10 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 
+#include "StringReferences.hpp"
+#include "VtableManager.hpp"
+#include "Inspector.hpp"
+
 #include "Hooker.hpp"
 
 HMODULE g_hModule = nullptr;
@@ -136,8 +140,10 @@ void render_module_vtables() {
     ImGui::NextColumn();
     ImGui::Separator();
 
-    static std::unordered_map<uintptr_t, size_t> vtable_counts{};
     static std::unordered_map<uintptr_t, std::vector<uintptr_t>> vtable_references{};
+
+    auto& string_references = StringReferences::get();
+    auto& vtable_manager = VtableManager::get();
 
     for (const auto vtable : all_vtables) {
         ImGui::PushID((void*)vtable);
@@ -149,35 +155,37 @@ void render_module_vtables() {
         const auto ti = utility::rtti::get_type_info(&vtable);
         //ImGui::Text("%s", (ti != nullptr && ti->name() != nullptr) ? ti->name() : "Unknown");
         if (ImGui::TreeNode((ti != nullptr && ti->name() != nullptr) ? ti->name() : "Unknown")) {
-            auto it = vtable_references.find(vtable);
-
-            if (it == vtable_references.end()) {
-                vtable_references[vtable] = utility::scan_displacement_references(selected_module, vtable);
-                it = vtable_references.find(vtable);
+            if (ImGui::Button("Open in Inspector")) {
+                Inspector::get().set_main_target((uintptr_t*)vtable);
             }
 
-            for (const auto ref : it->second) {
-                ImGui::Selectable(std::format("0x{:x}", ref).c_str());
+            if (ImGui::TreeNode("References")) {
+                auto it = vtable_references.find(vtable);
 
-                if (ImGui::BeginPopupContextItem()) {
-                    if (ImGui::MenuItem("Copy to clipboard")) {
-                        copy_to_clipboard(std::format("0x{:x}", ref));
-                    }
-
-                    ImGui::EndPopup();
+                if (it == vtable_references.end()) {
+                    vtable_references[vtable] = utility::scan_displacement_references(selected_module, vtable);
+                    it = vtable_references.find(vtable);
                 }
+
+                for (const auto ref : it->second) {
+                    ImGui::Selectable(std::format("0x{:x}", ref).c_str());
+
+                    if (ImGui::BeginPopupContextItem()) {
+                        if (ImGui::MenuItem("Copy to clipboard")) {
+                            copy_to_clipboard(std::format("0x{:x}", ref));
+                        }
+
+                        ImGui::EndPopup();
+                    }
+                }
+
+                ImGui::TreePop();
             }
 
             ImGui::TreePop();
         }
         ImGui::NextColumn();
-        size_t count = 0;
-        if (vtable_counts.contains(vtable)) {
-            count = vtable_counts[vtable];
-        } else {
-            count = Hooker::count((uintptr_t*)vtable);
-            vtable_counts[vtable] = count;
-        }
+        size_t count = vtable_manager.count((uintptr_t*)vtable);
 
         ImGui::Text("%zu", count);
         ImGui::NextColumn();
@@ -347,6 +355,27 @@ bool render_gui() {
 
         ImGui::End();
     }
+
+    if (ImGui::Begin("Manual Hook")) {
+        static std::array<char, 512> address_buffer{};
+        ImGui::InputText("Address", address_buffer.data(), address_buffer.size());
+
+        // Attempt to convert hex -> 64 bit unsigned integer
+        uintptr_t address = 0;
+        if (sscanf(address_buffer.data(), "%llx", &address) == 1) {
+            if (ImGui::Button("Hook")) {
+                g_hooker = std::make_unique<Hooker>((uintptr_t*)address);
+            }
+        } else {
+            ImGui::Text("Invalid address");
+        }
+
+        ImGui::End();
+    }
+
+    auto& inspector = Inspector::get();
+
+    inspector.render_window_for_main_target();
 
     return !open;
 }
